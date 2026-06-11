@@ -37,7 +37,7 @@ docker-compose exec backend python manage.py migrate-data
 # API Docs: http://localhost:8000/docs
 ```
 
-### Lokale Entwicklung ohne Docker
+### Frontend Setup
 
 **Backend:**
 ```bash
@@ -49,11 +49,12 @@ python manage.py migrate-data
 python -m uvicorn main:app --reload
 ```
 
-**Frontend:**
+**Frontend:** ✨ Vollständig implementiert mit 5 Komponenten!
 ```bash
 cd frontend
 npm install
 npm start
+# Frontend läuft auf http://localhost:4200
 ```
 
 ---
