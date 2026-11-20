@@ -1,57 +1,58 @@
 """Training plan generation endpoints."""
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from typing import List, Optional
+import logging
+from typing import Dict
+
+from fastapi import APIRouter, Depends, HTTPException
+
+from app.schemas import TrainingPlan, TrainingPlanRequest
+from app.services.llm import LLMProvider, LLMResponseError, LLMUnavailableError, get_llm_provider
+from app.services.plan_generator import debug_prompt, generate_training_plan as run_generation
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/training-plans", tags=["training-plans"])
 
 
-class UserProfile(BaseModel):
-    """User profile for training plan generation."""
-    age: int
-    experience_level: str  # beginner, intermediate, advanced
-    fitness_level: int  # 1-10
-    available_days_per_week: int
-    goals: List[str]
-    injuries_or_limitations: Optional[str] = None
-
-
-class ExerciseBlock(BaseModel):
-    """Single exercise block in a training plan."""
-    name: str
-    description: str
-    duration_minutes: int
-    intensity: str  # low, medium, high
-    repetitions: Optional[int] = None
-    rest_seconds: int = 60
-
-
-class TrainingPlan(BaseModel):
-    """Generated training plan."""
-    id: str
-    user_id: str
-    plan_name: str
-    duration_weeks: int
-    focus_area: str
-    exercises: List[ExerciseBlock]
-    notes: str
-    created_at: str
+def llm_provider_dependency() -> LLMProvider:
+    try:
+        return get_llm_provider()
+    except LLMUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @router.post("/generate", response_model=TrainingPlan)
-async def generate_training_plan(user_profile: UserProfile) -> TrainingPlan:
+async def generate_training_plan(
+    request: TrainingPlanRequest,
+    provider: LLMProvider = Depends(llm_provider_dependency),
+) -> TrainingPlan:
     """
-    Generate an AI-powered training plan based on user profile.
-    
-    - **age**: User's age
-    - **experience_level**: one of (beginner, intermediate, advanced)
-    - **fitness_level**: 1-10 scale
-    - **available_days_per_week**: Training frequency
-    - **goals**: List of training goals
+    Generate a training plan with the configured LLM (see ``LLM_PROVIDER``).
+
+    The parameters are the ones selected in the profile form. The response
+    contains the plan plus ``generation`` metadata (provider, model, latency,
+    tokens, warnings).
     """
-    # TODO: Integrate ML model for plan generation
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+    try:
+        return await run_generation(request, provider)
+    except LLMUnavailableError as exc:
+        logger.error("LLM unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail=f"Sprachmodell nicht erreichbar: {exc}") from exc
+    except LLMResponseError as exc:
+        logger.error("LLM returned unusable output: %s", exc)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.get("/llm-info")
+async def llm_info(provider: LLMProvider = Depends(llm_provider_dependency)) -> Dict[str, str]:
+    """Which provider and model are currently configured."""
+    return provider.describe()
+
+
+@router.post("/prompt-preview")
+async def prompt_preview(request: TrainingPlanRequest) -> Dict[str, str]:
+    """Show the prompts that would be sent to the LLM, without calling it."""
+    return debug_prompt(request)
 
 
 @router.get("/{plan_id}", response_model=TrainingPlan)

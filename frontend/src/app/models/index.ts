@@ -18,15 +18,30 @@ export interface Exercise {
 }
 
 export interface TrainingPlanExercise {
-  exercise_id: string;
+  exercise_id?: string | null;
   name: string;
   duration_minutes: number;
   sets?: number;
   repetitions?: number;
   rest_seconds: number;
   intensity: 'low' | 'medium' | 'high';
-  instructions?: string[];
+  instructions?: string[] | null;
+  notes?: string | null;
   order: number;
+  day: number;
+  session_title: string;
+}
+
+export interface GenerationInfo {
+  provider: string;
+  model: string;
+  duration_ms: number;
+  attempts: number;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  catalog_size: number;
+  unknown_exercises: string[];
+  warnings: string[];
 }
 
 export interface TrainingPlan {
@@ -38,8 +53,10 @@ export interface TrainingPlan {
   focus_area: string;
   difficulty_level: 'beginner' | 'intermediate' | 'advanced';
   exercises: TrainingPlanExercise[];
+  notes?: string;
   created_at: string;
   is_active: boolean;
+  generation?: GenerationInfo;
 }
 
 export interface UserProfile {
@@ -55,11 +72,14 @@ export interface UserProfile {
 
 export interface TrainingPlanRequest {
   age: number;
+  gender?: string;
   experience_level: 'beginner' | 'intermediate' | 'advanced';
   fitness_level: number;
   available_days_per_week: number;
+  hours_per_session?: number;
   goals: string[];
   injuries_or_limitations?: string;
+  duration_weeks?: number;
 }
 
 export interface ExerciseFilterOptions {

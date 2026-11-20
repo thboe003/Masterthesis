@@ -14,6 +14,18 @@ import { Router } from '@angular/router';
 export class TrainingPlanComponent implements OnInit {
   plan: TrainingPlan | null = null;
   exercises: TrainingPlanExercise[] = [];
+  sessions: { day: number; title: string; totalMinutes: number; exercises: TrainingPlanExercise[] }[] = [];
+
+  readonly levelLabels: { [key: string]: string } = {
+    beginner: 'Anfänger',
+    intermediate: 'Fortgeschritten',
+    advanced: 'Erfahren'
+  };
+  readonly intensityLabels: { [key: string]: string } = {
+    low: 'Niedrig',
+    medium: 'Mittel',
+    high: 'Hoch'
+  };
 
   constructor(
     private trainingPlanService: TrainingPlanService,
@@ -23,10 +35,23 @@ export class TrainingPlanComponent implements OnInit {
   ngOnInit(): void {
     this.trainingPlanService.currentPlan$.subscribe((plan) => {
       this.plan = plan;
-      if (plan) {
-        this.exercises = plan.exercises;
-      }
+      this.exercises = plan?.exercises ?? [];
+      this.sessions = this.groupByDay(this.exercises);
     });
+  }
+
+  private groupByDay(exercises: TrainingPlanExercise[]) {
+    const byDay = new Map<number, { day: number; title: string; totalMinutes: number; exercises: TrainingPlanExercise[] }>();
+    for (const exercise of [...exercises].sort((a, b) => a.order - b.order)) {
+      const day = exercise.day ?? 1;
+      if (!byDay.has(day)) {
+        byDay.set(day, { day, title: exercise.session_title || `Tag ${day}`, totalMinutes: 0, exercises: [] });
+      }
+      const session = byDay.get(day)!;
+      session.exercises.push(exercise);
+      session.totalMinutes += exercise.duration_minutes || 0;
+    }
+    return [...byDay.values()].sort((a, b) => a.day - b.day);
   }
 
   savePlan(): void {
@@ -50,11 +75,11 @@ export class TrainingPlanComponent implements OnInit {
   }
 
   newPlan(): void {
-    this.router.navigate(['/profile']);
+    this.router.navigate(['/training-plan']);
   }
 
   createNewPlan(): void {
-    this.router.navigate(['/profile']);
+    this.router.navigate(['/training-plan']);
   }
 
   back(): void {

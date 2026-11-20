@@ -59,7 +59,16 @@ export class UserProfileComponent implements OnInit {
   loadSavedProfile(): void {
     const savedProfile = this.trainingPlanService.getUserProfile();
     if (savedProfile) {
-      this.profileForm.patchValue(savedProfile);
+      const goals = savedProfile.goals || [];
+      this.profileForm.patchValue({
+        ...savedProfile,
+        available_days_per_week: savedProfile.available_days_per_week ? String(savedProfile.available_days_per_week) : '',
+        hours_per_session: savedProfile.hours_per_session ? String(savedProfile.hours_per_session) : '',
+        strength: goals.includes('strength'),
+        flexibility: goals.includes('flexibility'),
+        new_moves: goals.includes('new_moves'),
+        endurance: goals.includes('endurance')
+      });
     }
   }
 
@@ -85,12 +94,14 @@ export class UserProfileComponent implements OnInit {
     if (formValue.endurance) goals.push('endurance');
 
     const trainingPlanRequest: TrainingPlanRequest = {
-      age: formValue.age,
+      age: Number(formValue.age),
+      gender: formValue.gender || undefined,
       experience_level: formValue.experience_level,
-      fitness_level: formValue.fitness_level,
-      available_days_per_week: formValue.available_days_per_week,
+      fitness_level: Number(formValue.fitness_level),
+      available_days_per_week: Number(formValue.available_days_per_week),
+      hours_per_session: Number(formValue.hours_per_session) || undefined,
       goals: goals,
-      injuries_or_limitations: formValue.injuries_or_limitations
+      injuries_or_limitations: formValue.injuries_or_limitations || undefined
     };
 
     const userProfile: UserProfile = {
@@ -111,12 +122,18 @@ export class UserProfileComponent implements OnInit {
       next: (plan) => {
         this.isLoading = false;
         this.trainingPlanService.setCurrentPlan(plan);
-        this.router.navigate(['/training-plan']);
+        this.router.navigate(['/my-plans']);
       },
       error: (error) => {
         this.isLoading = false;
         console.error('Error generating training plan:', error);
-        this.errorMessage = 'Fehler beim Erstellen des Trainingsplans. Bitte versuche es später erneut.';
+        if (error?.status === 503) {
+          this.errorMessage = 'Das Sprachmodell ist nicht erreichbar. Läuft der LLM-Server (z. B. Ollama)?';
+        } else if (error?.status === 502) {
+          this.errorMessage = 'Das Sprachmodell hat keinen gültigen Plan geliefert. Bitte versuche es erneut.';
+        } else {
+          this.errorMessage = 'Fehler beim Erstellen des Trainingsplans. Bitte versuche es später erneut.';
+        }
       }
     });
   }

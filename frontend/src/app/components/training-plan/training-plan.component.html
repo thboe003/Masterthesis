@@ -1,0 +1,102 @@
+<div class="container" *ngIf="plan; else emptyState">
+  <div class="header">
+    <div class="header-content">
+      <h1>{{ plan.name }}</h1>
+      <p class="subtitle" *ngIf="plan.description">{{ plan.description }}</p>
+      <div class="plan-meta">
+        <span class="meta-item"><strong>Fokus:</strong> {{ plan.focus_area }}</span>
+        <span class="meta-item"><strong>Dauer:</strong> {{ plan.duration_weeks }} Wochen</span>
+        <span class="meta-item"><strong>Einheiten pro Woche:</strong> {{ sessions.length }}</span>
+        <span class="badge" [ngClass]="'badge-' + plan.difficulty_level">
+          {{ levelLabels[plan.difficulty_level] || plan.difficulty_level }}
+        </span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-primary" (click)="savePlan()">Speichern</button>
+      <button class="btn btn-secondary" (click)="downloadPlan()">Als JSON herunterladen</button>
+    </div>
+  </div>
+
+  <div class="warning-box" *ngIf="plan.generation?.warnings?.length">
+    <strong>Hinweise zur Generierung:</strong>
+    <ul>
+      <li *ngFor="let warning of plan.generation?.warnings">{{ warning }}</li>
+    </ul>
+  </div>
+
+  <section class="day-section" *ngFor="let session of sessions">
+    <h2 class="day-title">
+      Tag {{ session.day }}: {{ session.title }}
+      <span class="day-duration">{{ session.totalMinutes }} min</span>
+    </h2>
+
+    <div class="exercise-details">
+      <div class="exercise-item" *ngFor="let exercise of session.exercises; let i = index">
+        <div class="exercise-number">{{ i + 1 }}</div>
+        <div class="exercise-info">
+          <h3>
+            {{ exercise.name }}
+            <span class="custom-tag" *ngIf="!exercise.exercise_id" title="Nicht im Übungskatalog gefunden">
+              nicht im Katalog
+            </span>
+          </h3>
+
+          <div class="exercise-specs">
+            <span class="spec-item"><strong>Dauer:</strong> {{ exercise.duration_minutes }} min</span>
+            <span class="spec-item" *ngIf="exercise.sets"><strong>Sätze:</strong> {{ exercise.sets }}</span>
+            <span class="spec-item" *ngIf="exercise.repetitions"><strong>Wdh.:</strong> {{ exercise.repetitions }}</span>
+            <span class="spec-item"><strong>Pause:</strong> {{ exercise.rest_seconds }} s</span>
+          </div>
+
+          <div class="intensity-container">
+            <span class="intensity-label">Intensität: {{ intensityLabels[exercise.intensity] || exercise.intensity }}</span>
+            <div class="intensity-bar">
+              <div
+                class="intensity-fill"
+                [ngClass]="'intensity-' + exercise.intensity"
+                [style.width]="getIntensityWidth(exercise.intensity)"
+              ></div>
+            </div>
+          </div>
+
+          <p class="exercise-note" *ngIf="exercise.notes">{{ exercise.notes }}</p>
+
+          <details class="exercise-instructions" *ngIf="exercise.instructions?.length">
+            <summary>Anleitung</summary>
+            <ol class="instructions-list">
+              <li *ngFor="let step of exercise.instructions">{{ step }}</li>
+            </ol>
+          </details>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <p class="no-exercises" *ngIf="!sessions.length">Dieser Plan enthält keine Übungen.</p>
+
+  <div class="notes-section" *ngIf="plan.notes">
+    <h2>Hinweise & Progression</h2>
+    <p>{{ plan.notes }}</p>
+  </div>
+
+  <p class="generation-info" *ngIf="plan.generation as gen">
+    Erstellt mit {{ gen.provider }} / {{ gen.model }} in {{ (gen.duration_ms / 1000) | number: '1.1-1' }} s
+    <ng-container *ngIf="gen.attempts > 1">({{ gen.attempts }} Versuche)</ng-container>
+  </p>
+
+  <div class="action-footer">
+    <button class="btn btn-primary btn-large" (click)="newPlan()">Neuen Plan erstellen</button>
+    <button class="btn btn-secondary" (click)="back()">Zur Startseite</button>
+  </div>
+</div>
+
+<ng-template #emptyState>
+  <div class="empty-state">
+    <div class="empty-content">
+      <h2>Noch kein Trainingsplan</h2>
+      <p>Fülle dein Profil aus und lass dir einen persönlichen Plan erstellen.</p>
+      <button class="btn btn-primary btn-large" (click)="createNewPlan()">Trainingsplan erstellen</button>
+    </div>
+  </div>
+</ng-template>
