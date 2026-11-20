@@ -50,9 +50,10 @@ app.add_middleware(
 )
 
 # Include API routes
-from app.api import training_plans, exercises
+from app.api import training_plans, exercises, video_analysis
 app.include_router(training_plans.router)
 app.include_router(exercises.router)
+app.include_router(video_analysis.router)
 
 
 @app.get("/")

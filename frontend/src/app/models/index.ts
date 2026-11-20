@@ -109,3 +109,93 @@ export interface PaginatedResponse<T> {
   skip: number;
   limit: number;
 }
+
+// --------------------------------------------------------------------------
+// Video analysis (execution feedback)
+// --------------------------------------------------------------------------
+export type IssueSeverity = 'minor' | 'moderate' | 'major' | 'safety';
+
+export interface AnalyzableExercise {
+  id: string;
+  name: string;
+  level: string;
+  category: string;
+}
+
+export interface VideoAnalysisRequest {
+  video: File;
+  exercise_id?: string;
+  exercise_name?: string;
+  experience_level?: 'beginner' | 'intermediate' | 'advanced';
+  user_notes?: string;
+  num_frames?: number;
+  frame_mode?: 'frames' | 'grid';
+  use_pose?: boolean;
+  start_s?: number;
+  end_s?: number;
+}
+
+export interface AnalyzedFrame {
+  number: number;
+  timestamp_s: number;
+  thumbnail: string;
+  pose?: Record<string, number | boolean> | null;
+}
+
+export interface ExecutionIssue {
+  title: string;
+  description: string;
+  severity: IssueSeverity;
+  body_part?: string | null;
+  frame_numbers: number[];
+  timestamps_s: number[];
+  correction: string;
+}
+
+export interface ExerciseRecommendation {
+  exercise_id?: string | null;
+  name: string;
+  reason: string;
+  in_catalog: boolean;
+}
+
+export interface VideoFeedback {
+  recognized_exercise: string;
+  matches_expected_exercise?: boolean | null;
+  analyzable: boolean;
+  overall_score?: number | null;
+  confidence: 'low' | 'medium' | 'high';
+  summary: string;
+  strengths: string[];
+  issues: ExecutionIssue[];
+  safety_warnings: string[];
+  recommended_exercises: ExerciseRecommendation[];
+  next_steps: string;
+}
+
+export interface VideoAnalysisInfo {
+  provider: string;
+  model: string;
+  duration_ms: number;
+  preprocessing_ms: number;
+  attempts: number;
+  frame_mode: 'frames' | 'grid';
+  frames_sent: number;
+  images_sent: number;
+  pose_estimation: boolean;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  warnings: string[];
+}
+
+export interface VideoAnalysisResult {
+  id: string;
+  created_at: string;
+  exercise_id?: string | null;
+  exercise_name?: string | null;
+  experience_level?: 'beginner' | 'intermediate' | 'advanced' | null;
+  video: { filename?: string | null; duration_s: number; fps: number; width: number; height: number };
+  frames: AnalyzedFrame[];
+  feedback: VideoFeedback;
+  analysis: VideoAnalysisInfo;
+}

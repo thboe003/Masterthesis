@@ -86,3 +86,9 @@ Die Tests verwenden einen Fake-Provider und brauchen weder Modell noch Netzwerk.
 Versuche, nicht im Katalog gefundene Übungen und Plausibilitätswarnungen (falsche Anzahl
 an Einheiten, überschrittene Session-Dauer). Damit lassen sich verschiedene Modelle
 direkt vergleichen.
+
+## Bildeingaben / Videoanalyse
+
+Alle Provider unterstützen zusätzlich `complete_json_with_images` (Bilder als
+`ImageInput`). Die Videoanalyse nutzt dafür ein eigenes Vision-Modell
+(`VISION_LLM_PROVIDER`, `VISION_LLM_MODEL`). Details: `VIDEO_ANALYSIS.md`.

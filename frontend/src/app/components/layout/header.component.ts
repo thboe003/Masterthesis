@@ -22,6 +22,7 @@ import { CommonModule } from '@angular/common';
             <li><a routerLink="/exercises" routerLinkActive="active">Übungen</a></li>
             <li><a routerLink="/training-plan" routerLinkActive="active">Trainingsplan</a></li>
             <li><a routerLink="/my-plans" routerLinkActive="active">Meine Pläne</a></li>
+            <li><a routerLink="/video-analysis" routerLinkActive="active">Videoanalyse</a></li>
           </ul>
           
           <div class="nav-actions">

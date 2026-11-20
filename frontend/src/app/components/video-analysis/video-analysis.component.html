@@ -1,0 +1,208 @@
+<div class="container">
+  <div class="card">
+    <h1>Videoanalyse</h1>
+    <p class="subtitle">
+      Lade ein Trainingsvideo hoch und erhalte Feedback zu deiner Ausführung. Das Video wird in
+      einzelne Schlüsselbilder zerlegt, die ein KI-Modell auswertet. Das Video selbst wird nach der Analyse gelöscht.
+    </p>
+
+    <div class="error-banner" *ngIf="errorMessage">{{ errorMessage }}</div>
+
+    <!-- Upload -->
+    <div
+      class="dropzone"
+      *ngIf="!selectedFile"
+      [class.drag-over]="dragOver"
+      (dragover)="onDragOver($event)"
+      (dragleave)="dragOver = false"
+      (drop)="onDrop($event)"
+    >
+      <p class="dropzone-icon">🎬</p>
+      <p>Video hierher ziehen oder</p>
+      <label class="btn btn-primary">
+        Datei auswählen
+        <input type="file" accept="video/*" (change)="onFileSelected($event)" hidden />
+      </label>
+      <p class="hint">mp4, mov, webm · max. {{ maxUploadMb }} MB · Tipp: seitlich filmen, ganzer Körper und Stange im Bild</p>
+    </div>
+
+    <div class="preview" *ngIf="selectedFile && videoUrl">
+      <video #player [src]="videoUrl" controls playsinline preload="metadata"></video>
+      <div class="file-row">
+        <span>{{ selectedFile.name }} ({{ formatSize(selectedFile.size) }})</span>
+        <button type="button" class="btn-link" (click)="removeFile()" [disabled]="isLoading">Anderes Video</button>
+      </div>
+    </div>
+
+    <!-- Parameters -->
+    <form *ngIf="selectedFile" (ngSubmit)="analyze()" class="form">
+      <div class="form-group">
+        <label for="exercise">Welche Übung zeigt das Video?</label>
+        <select id="exercise" [(ngModel)]="exerciseId" name="exerciseId">
+          <option value="">-- automatisch erkennen / unten eingeben --</option>
+          <option *ngFor="let e of exercises" [value]="e.id">{{ e.name }} ({{ e.level }})</option>
+        </select>
+      </div>
+
+      <div class="form-group" *ngIf="!exerciseId">
+        <label for="exerciseName">Übung (Freitext, optional)</label>
+        <input id="exerciseName" type="text" [(ngModel)]="exerciseName" name="exerciseName" placeholder="z. B. Fireman Spin" />
+      </div>
+
+      <div class="form-group">
+        <label for="level">Dein Erfahrungslevel</label>
+        <select id="level" [(ngModel)]="experienceLevel" name="experienceLevel">
+          <option value="">-- nicht angeben --</option>
+          <option value="beginner">Anfänger (0-6 Monate)</option>
+          <option value="intermediate">Fortgeschritten (6-24 Monate)</option>
+          <option value="advanced">Erfahren (2+ Jahre)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="notes">Worauf soll besonders geachtet werden?</label>
+        <textarea
+          id="notes"
+          rows="3"
+          maxlength="1000"
+          [(ngModel)]="userNotes"
+          name="userNotes"
+          placeholder="z. B. Sind meine Schultern aktiv? Ich habe leichte Probleme im linken Handgelenk."
+        ></textarea>
+      </div>
+
+      <button type="button" class="btn-link" (click)="showAdvanced = !showAdvanced">
+        {{ showAdvanced ? '▾' : '▸' }} Erweiterte Einstellungen
+      </button>
+
+      <div class="advanced" *ngIf="showAdvanced">
+        <div class="form-group">
+          <label for="frames">Anzahl Schlüsselbilder: {{ numFrames }}</label>
+          <input id="frames" type="range" min="4" max="16" step="1" [(ngModel)]="numFrames" name="numFrames" />
+          <span class="hint">Mehr Bilder = genauer, aber langsamer und teurer.</span>
+        </div>
+
+        <div class="form-group">
+          <label>Bilder senden als</label>
+          <div class="radio-row">
+            <label><input type="radio" value="frames" [(ngModel)]="frameMode" name="frameMode" /> Einzelbilder</label>
+            <label><input type="radio" value="grid" [(ngModel)]="frameMode" name="frameMode" /> Kontaktbogen (1 Bild)</label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox">
+            <input type="checkbox" [(ngModel)]="usePose" name="usePose" />
+            Gelenkwinkel per Pose-Schätzung ergänzen (benötigt MediaPipe im Backend)
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label>Ausschnitt (optional)</label>
+          <div class="trim-row">
+            <button type="button" class="btn btn-secondary" (click)="setStartFromPlayer()">Start = aktuelle Position</button>
+            <span>{{ startS !== null ? formatSeconds(startS) : 'Anfang' }}</span>
+            <button type="button" class="btn btn-secondary" (click)="setEndFromPlayer()">Ende = aktuelle Position</button>
+            <span>{{ endS !== null ? formatSeconds(endS) : 'Ende' }}</span>
+            <button type="button" class="btn-link" *ngIf="startS !== null || endS !== null" (click)="startS = null; endS = null">zurücksetzen</button>
+          </div>
+          <span class="error" *ngIf="trimInvalid">Das Ende muss nach dem Start liegen.</span>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-block" [disabled]="isLoading || trimInvalid">
+        <span *ngIf="!isLoading">Ausführung analysieren</span>
+        <span *ngIf="isLoading">Analysiere Video … (kann bis zu einer Minute dauern)</span>
+      </button>
+    </form>
+  </div>
+
+  <!-- Result -->
+  <div class="card result" *ngIf="result as r">
+    <div class="result-header">
+      <div class="score" [ngClass]="scoreClass(r.feedback.overall_score)">
+        <span class="score-value">{{ r.feedback.overall_score ?? '–' }}</span>
+        <span class="score-label">/ 10</span>
+      </div>
+      <div>
+        <h2>{{ r.feedback.recognized_exercise }}</h2>
+        <p class="meta">
+          <span *ngIf="r.exercise_name">Erwartet: {{ r.exercise_name }}
+            <span *ngIf="r.feedback.matches_expected_exercise === true" class="tag tag-ok">passt</span>
+            <span *ngIf="r.feedback.matches_expected_exercise === false" class="tag tag-warn">andere Übung erkannt</span>
+          </span>
+          <span>Sicherheit der Einschätzung: {{ confidenceLabels[r.feedback.confidence] }}</span>
+        </p>
+      </div>
+    </div>
+
+    <p class="summary">{{ r.feedback.summary }}</p>
+
+    <div class="safety-banner" *ngIf="r.feedback.safety_warnings.length">
+      <strong>⚠️ Sicherheitshinweise</strong>
+      <ul><li *ngFor="let w of r.feedback.safety_warnings">{{ w }}</li></ul>
+    </div>
+
+    <section *ngIf="r.feedback.strengths.length">
+      <h3>Das klappt gut</h3>
+      <ul class="strengths"><li *ngFor="let s of r.feedback.strengths">{{ s }}</li></ul>
+    </section>
+
+    <section *ngIf="sortedIssues.length">
+      <h3>Verbesserungspotenzial</h3>
+      <div class="issue" *ngFor="let issue of sortedIssues" [ngClass]="'issue-' + issue.severity">
+        <div class="issue-head">
+          <span class="severity">{{ severityLabels[issue.severity] }}</span>
+          <strong>{{ issue.title }}</strong>
+          <span class="body-part" *ngIf="issue.body_part">· {{ issue.body_part }}</span>
+        </div>
+        <p>{{ issue.description }}</p>
+        <p class="correction"><strong>Korrektur:</strong> {{ issue.correction }}</p>
+        <div class="issue-frames" *ngIf="framesFor(issue).length">
+          <button type="button" *ngFor="let f of framesFor(issue)" (click)="seekTo(f.timestamp_s)" title="Im Video anspringen">
+            <img [src]="f.thumbnail" [alt]="'Frame ' + f.number" />
+            <span>#{{ f.number }} · {{ formatSeconds(f.timestamp_s) }}</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section *ngIf="r.feedback.recommended_exercises.length">
+      <h3>Empfohlene Übungen für deinen Trainingsplan</h3>
+      <ul class="recommendations">
+        <li *ngFor="let rec of r.feedback.recommended_exercises">
+          <strong>{{ rec.name }}</strong>
+          <span class="tag tag-muted" *ngIf="!rec.in_catalog">nicht im Katalog</span>
+          – {{ rec.reason }}
+        </li>
+      </ul>
+    </section>
+
+    <section *ngIf="r.feedback.next_steps">
+      <h3>Nächste Schritte</h3>
+      <p>{{ r.feedback.next_steps }}</p>
+    </section>
+
+    <section>
+      <h3>Analysierte Schlüsselbilder</h3>
+      <div class="frame-strip">
+        <button type="button" *ngFor="let f of r.frames" (click)="seekTo(f.timestamp_s)">
+          <img [src]="f.thumbnail" [alt]="'Frame ' + f.number" />
+          <span>#{{ f.number }} · {{ formatSeconds(f.timestamp_s) }}</span>
+        </button>
+      </div>
+    </section>
+
+    <details class="analysis-meta">
+      <summary>Details zur Analyse</summary>
+      <ul>
+        <li>Modell: {{ r.analysis.provider }} / {{ r.analysis.model }}</li>
+        <li>Bilder: {{ r.analysis.frames_sent }} Frames als {{ r.analysis.frame_mode === 'grid' ? 'Kontaktbogen' : 'Einzelbilder' }} ({{ r.analysis.images_sent }} Bild(er))</li>
+        <li>Pose-Schätzung: {{ r.analysis.pose_estimation ? 'ja' : 'nein' }}</li>
+        <li>Dauer: Vorverarbeitung {{ r.analysis.preprocessing_ms }} ms, Modell {{ r.analysis.duration_ms }} ms, {{ r.analysis.attempts }} Versuch(e)</li>
+        <li *ngIf="r.analysis.input_tokens">Tokens: {{ r.analysis.input_tokens }} Eingabe / {{ r.analysis.output_tokens }} Ausgabe</li>
+        <li *ngFor="let w of r.analysis.warnings" class="warning">{{ w }}</li>
+      </ul>
+    </details>
+  </div>
+</div>

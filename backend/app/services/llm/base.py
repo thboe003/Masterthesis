@@ -9,11 +9,12 @@ touching the plan-generation logic.
 
 from __future__ import annotations
 
+import base64
 import json
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 
 class LLMError(Exception):
@@ -26,6 +27,27 @@ class LLMUnavailableError(LLMError):
 
 class LLMResponseError(LLMError):
     """The provider answered, but the answer could not be used (e.g. no valid JSON)."""
+
+
+@dataclass
+class ImageInput:
+    """
+    One image sent to a multimodal (vision) model.
+
+    ``data`` holds the encoded image bytes (JPEG/PNG). Providers transmit them
+    base64-encoded – base64 is only the transport format of the API, the model
+    itself receives the decoded image, not the "binary code".
+    """
+
+    data: bytes
+    media_type: str = "image/jpeg"
+    label: Optional[str] = None  # e.g. "Frame 3 (t=2.40s)", placed as text before the image
+
+    def b64(self) -> str:
+        return base64.b64encode(self.data).decode("ascii")
+
+    def data_url(self) -> str:
+        return f"data:{self.media_type};base64,{self.b64()}"
 
 
 @dataclass
@@ -52,6 +74,18 @@ class LLMProvider(ABC):
     @abstractmethod
     async def complete_json(self, system_prompt: str, user_prompt: str) -> LLMResult:
         """Send the prompts to the model and return its (JSON) answer as text."""
+
+    async def complete_json_with_images(
+        self, system_prompt: str, user_prompt: str, images: List[ImageInput]
+    ) -> LLMResult:
+        """
+        Like ``complete_json`` but with images attached to the user message.
+
+        Used by the video analysis: a video is reduced to a few key frames
+        which are sent as images. The selected model must be vision-capable
+        (e.g. qwen2.5vl / llama3.2-vision in Ollama, gpt-4o, Claude).
+        """
+        raise LLMUnavailableError(f"Provider '{self.name}' unterstützt keine Bildeingaben.")
 
     def describe(self) -> Dict[str, Any]:
         return {"provider": self.name, "model": self.model}

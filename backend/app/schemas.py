@@ -139,3 +139,172 @@ class TrainingPlan(BaseModel):
     created_at: str
     is_active: bool = True
     generation: Optional[GenerationInfo] = None
+
+
+# =========================================================================== #
+# Video analysis (execution feedback)
+# =========================================================================== #
+Severity = Literal["minor", "moderate", "major", "safety"]
+Confidence = Literal["low", "medium", "high"]
+
+
+def _normalize_severity(value):
+    mapping = {
+        "gering": "minor", "klein": "minor", "low": "minor", "leicht": "minor",
+        "mittel": "moderate", "medium": "moderate",
+        "hoch": "major", "high": "major", "schwer": "major", "groß": "major",
+        "sicherheit": "safety", "critical": "safety", "kritisch": "safety", "gefährlich": "safety",
+    }
+    if isinstance(value, str):
+        value = value.strip().lower()
+        return mapping.get(value, value)
+    return value
+
+
+def _normalize_confidence(value):
+    mapping = {"niedrig": "low", "gering": "low", "mittel": "medium", "hoch": "high"}
+    if isinstance(value, str):
+        value = value.strip().lower()
+        return mapping.get(value, value)
+    return value
+
+
+class LLMExecutionIssue(BaseModel):
+    title: str
+    description: str
+    severity: Severity = "moderate"
+    body_part: Optional[str] = None
+    frame_numbers: List[int] = []
+    correction: str
+
+    @field_validator("severity", mode="before")
+    @classmethod
+    def normalize_severity(cls, value):
+        return _normalize_severity(value)
+
+    @field_validator("frame_numbers", mode="before")
+    @classmethod
+    def coerce_frames(cls, value):
+        if value is None:
+            return []
+        if isinstance(value, (int, str)):
+            value = [value]
+        out = []
+        for v in value:
+            try:
+                out.append(int(str(v).strip().lstrip("#")))
+            except ValueError:
+                continue
+        return out
+
+
+class LLMExerciseRecommendation(BaseModel):
+    exercise_id: Optional[str] = None
+    name: str
+    reason: str
+
+
+class LLMVideoFeedback(BaseModel):
+    """What the vision model has to return."""
+
+    recognized_exercise: str
+    matches_expected_exercise: Optional[bool] = None
+    analyzable: bool = True
+    overall_score: Optional[int] = Field(None, ge=1, le=10)
+    confidence: Confidence = "medium"
+    summary: str
+    strengths: List[str] = []
+    issues: List[LLMExecutionIssue] = []
+    safety_warnings: List[str] = []
+    recommended_exercises: List[LLMExerciseRecommendation] = []
+    next_steps: str = ""
+
+    @field_validator("confidence", mode="before")
+    @classmethod
+    def normalize_confidence(cls, value):
+        return _normalize_confidence(value)
+
+    @field_validator("overall_score", mode="before")
+    @classmethod
+    def clamp_score(cls, value):
+        if value in (None, ""):
+            return None
+        try:
+            return max(1, min(10, int(round(float(value)))))
+        except (TypeError, ValueError):
+            return None
+
+
+class AnalyzedFrame(BaseModel):
+    number: int
+    timestamp_s: float
+    thumbnail: str  # data URL (small JPEG) for the UI
+    pose: Optional[dict] = None
+
+
+class ExecutionIssue(BaseModel):
+    title: str
+    description: str
+    severity: Severity
+    body_part: Optional[str] = None
+    frame_numbers: List[int] = []
+    timestamps_s: List[float] = []
+    correction: str
+
+
+class ExerciseRecommendation(BaseModel):
+    exercise_id: Optional[str] = None
+    name: str
+    reason: str
+    in_catalog: bool
+
+
+class VideoFeedback(BaseModel):
+    recognized_exercise: str
+    matches_expected_exercise: Optional[bool] = None
+    analyzable: bool
+    overall_score: Optional[int] = None
+    confidence: Confidence
+    summary: str
+    strengths: List[str] = []
+    issues: List[ExecutionIssue] = []
+    safety_warnings: List[str] = []
+    recommended_exercises: List[ExerciseRecommendation] = []
+    next_steps: str = ""
+
+
+class VideoMetadata(BaseModel):
+    filename: Optional[str] = None
+    duration_s: float
+    fps: float
+    width: int
+    height: int
+
+
+class VideoAnalysisInfo(BaseModel):
+    """Metadata about the analysis, useful for the evaluation in the thesis."""
+
+    provider: str
+    model: str
+    duration_ms: int
+    preprocessing_ms: int
+    attempts: int
+    frame_mode: Literal["frames", "grid"]
+    frames_sent: int
+    images_sent: int
+    pose_estimation: bool
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    warnings: List[str] = []
+
+
+class VideoAnalysisResult(BaseModel):
+    id: str
+    created_at: str
+    exercise_id: Optional[str] = None
+    exercise_name: Optional[str] = None
+    experience_level: Optional[ExperienceLevel] = None
+    video: VideoMetadata
+    frames: List[AnalyzedFrame]
+    feedback: VideoFeedback
+    analysis: VideoAnalysisInfo

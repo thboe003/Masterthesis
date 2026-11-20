@@ -7,6 +7,9 @@ import {
   TrainingPlanRequest,
   ExerciseStats,
   ExerciseFilterOptions,
+  AnalyzableExercise,
+  VideoAnalysisRequest,
+  VideoAnalysisResult,
 } from '../models/index';
 
 @Injectable({
@@ -106,5 +109,38 @@ export class ApiService {
    */
   deleteTrainingPlan(planId: string): Observable<any> {
     return this.http.delete(`${this.apiUrl}/training-plans/${planId}`);
+  }
+
+  /**
+   * Pole exercises that can be selected for the video analysis
+   */
+  getAnalyzableExercises(): Observable<AnalyzableExercise[]> {
+    return this.http.get<AnalyzableExercise[]>(`${this.apiUrl}/video-analysis/exercises`);
+  }
+
+  /**
+   * Upload a training video and get feedback on the execution
+   * (multipart/form-data – the browser sets the boundary header itself)
+   */
+  analyzeVideo(request: VideoAnalysisRequest): Observable<VideoAnalysisResult> {
+    const form = new FormData();
+    form.append('video', request.video, request.video.name);
+    const optional: Record<string, string | number | boolean | undefined> = {
+      exercise_id: request.exercise_id,
+      exercise_name: request.exercise_name,
+      experience_level: request.experience_level,
+      user_notes: request.user_notes,
+      num_frames: request.num_frames,
+      frame_mode: request.frame_mode,
+      use_pose: request.use_pose,
+      start_s: request.start_s,
+      end_s: request.end_s,
+    };
+    Object.entries(optional).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        form.append(key, String(value));
+      }
+    });
+    return this.http.post<VideoAnalysisResult>(`${this.apiUrl}/video-analysis/analyze`, form);
   }
 }
