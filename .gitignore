@@ -1,0 +1,49 @@
+# --- Python virtual environments ---
+# Die lokalen Umgebungen (master26/, backend/master26/, backend/source/)
+# bleiben auf dem Rechner erhalten. Hier wird nur verhindert, dass weitere
+# Inhalte daraus (z. B. Lib/site-packages) ins Repository gelangen.
+master26/
+backend/master26/
+backend/source/
+venv/
+.venv/
+env/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- Secrets / lokale Konfiguration ---
+.env
+backend/.env
+docker/.env
+!.env.example
+
+# --- ML-Artefakte ---
+ml/models/*.pt
+ml/models/*.bin
+ml/models/*.safetensors
+ml/models/checkpoints/
+ml/runs/
+wandb/
+
+# --- Lokale Datenbanken ---
+*.db
+*.sqlite3
+
+# --- Angular / Node ---
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+npm-debug.log*
+
+# --- IDE / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
